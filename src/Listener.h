@@ -11,7 +11,7 @@ public:
 	 * @param endpoint endpoint to use
 	 * @param handleRequest function used to act on request 
 	 */
-	Listener(net::io_context& ioc, const tcp::endpoint& endpoint, std::string (*handleRequest)(const std::string&));
+	Listener(net::io_context& ioc, const tcp::endpoint& endpoint, std::function<std::string(const std::string&)> handleRequest);
 
 	/**
 	 * @brief Starts up
@@ -29,7 +29,7 @@ private:
 	/**
 	 * @brief Function used to act on a request body and return a response body
 	 */
-	std::string (*handleRequest)(const std::string&);
+	std::function<std::string(const std::string&)> handleRequest;
 
 	/**
 	 * @brief Sets up asynchronous accepting connections

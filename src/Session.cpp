@@ -1,7 +1,7 @@
 #include "Session.h"
 
-Session::Session(tcp::socket socket, std::string (*handleRequest)(const std::string&)) :
-	socket(std::move(socket)), handleRequest(handleRequest) {
+Session::Session(tcp::socket socket, std::function<std::string(const std::string&)> handleRequest) :
+	socket(std::move(socket)), handleRequest(std::move(handleRequest)) {
 }
 
 void Session::run() {

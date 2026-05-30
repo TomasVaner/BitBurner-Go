@@ -1,9 +1,10 @@
 #include <boost/asio/strand.hpp>
+#include <utility>
 
 #include "Listener.h"
 
-Listener::Listener(net::io_context& ioc, const tcp::endpoint& endpoint, std::string (*handleRequest)(const std::string&)) :
-	ioc(ioc), acceptor(ioc), handleRequest(handleRequest) {
+Listener::Listener(net::io_context& ioc, const tcp::endpoint& endpoint, std::function<std::string(const std::string&)> handleRequest) :
+	ioc(ioc), acceptor(ioc), handleRequest(std::move(handleRequest)) {
 	beast::error_code errorCode;
 
 	(void)acceptor.open(endpoint.protocol(), errorCode);
