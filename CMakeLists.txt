@@ -39,7 +39,12 @@ find_package(Boost REQUIRED)
 set(MICROSERVICE_SOURCE_FILES
     src/utils.h src/utils.cpp
     src/game/GameState.h src/game/GameState.cpp
+    src/ai/GameStateData.h src/ai/GameStateData.cpp
+    src/ai/Example.h src/ai/Example.cpp
     src/ai/MCTS.h src/ai/MCTS.cpp
+    src/ai/BasicMCTS.h src/ai/BasicMCTS.cpp
+    src/ai/AdvancedMCTS.h src/ai/AdvancedMCTS.cpp
+    src/ai/NeuralNetwork.h src/ai/NeuralNetwork.cpp
     src/boostUtils.h src/boostUtils.cpp
     src/Session.h src/Session.cpp
     src/Listener.h src/Listener.cpp
