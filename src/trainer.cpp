@@ -1,14 +1,26 @@
 #include "ai/AdvancedMCTS.h"
 
+#include <filesystem>
+#include <format>
 #include <fstream>
 #include <chrono>
 #include <random>
+#include <ctime>
 
 #include "ai/NeuralNetwork.h"
 #include "ai/MCTS.h"
 #include "ai/Example.h"
+#include "utils.h"
 
 int main(int argc, char* argv[]) {
+	std::time_t t = std::time(nullptr);
+	std::tm tm;
+	localtime_s(&tm, &t);
+	std::stringstream date_stream;
+	date_stream << "training_" << std::put_time(&tm, "%Y%m%d%H%M%S");
+	std::filesystem::path training_folder = date_stream.str();
+	std::filesystem::create_directory(training_folder);
+
 	NeuralNetwork neuralNetwork;
 	std::ofstream lout("trainerLog.txt", std::ios::app);
 	lout << "Starting up" << '\n';
@@ -62,14 +74,17 @@ int main(int argc, char* argv[]) {
 		lout << "Starting iteration " << iteration << '\n';
 		lout.flush();
 		std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+		auto iter_str = std::format("{:0>3}", iteration);
+		auto ex_path = training_folder / (iter_str + "_gameMCTSTemp.ex");
+		auto multi_gm_path = training_folder / (iter_str + "_multiGameMCTSTemp.gm");
 
 		if (SKIP_EXAMPLE_GENERATION == 0 || iteration != 0) {
 			lout << "Starting example generation" << '\n';
 			lout << std::chrono::duration_cast<std::chrono::minutes>(std::chrono::steady_clock::now()-begin).count() << " minutes have passed" << '\n';
 			lout.flush();
 
-			std::ofstream exout("gameMCTSTemp.ex", std::ios::app);
-			std::ofstream gmout("multiGameMCTSTemp.gm", std::ios::app);
+			std::ofstream exout(ex_path, std::ios::app);
+			std::ofstream gmout(multi_gm_path, std::ios::app);
 
 			for (int episode = 0; episode < NUM_EPISODES; episode++) {
 				GameState* curGameState = GameState::newGame('O', GameState::getRandomBoard(rng));
@@ -139,28 +154,27 @@ int main(int argc, char* argv[]) {
 			gmout.close();
 		}
 
-		if (!neuralNetwork.save("models/temp.pt")) {
-			lout << "ERROR: Current model did not save correctly to models/temp.pt" << '\n';
-		}
+		fin.open(ex_path);
 
-		fin.open("gameMCTSTemp.ex");
-		std::ofstream fout("average.ex");
+		auto average_ex_path = training_folder / (iter_str + "_average.ex");
+		std::ofstream fout(average_ex_path);
 		Example::saveAverage(fin, fout);
 		fin.close();
 		fout.close();
 
 		std::vector<Example> examples;
+
 		for (int epoch = 0; epoch < EPOCHS; epoch++) {
-			fin.open("average.ex");
+			fin.open(average_ex_path);
 			examples = Example::load(fin);
 			fin.close();
 
 			std::shuffle(examples.begin(), examples.end(), rng);
-			fout.open("average.ex");
+			fout.open(average_ex_path);
 			Example::save(fout, examples);
 			fout.close();
 
-			fin.open("average.ex");
+			fin.open(average_ex_path);
 			bool complete = false;
 			while (!complete) {
 				examples.clear();
@@ -171,8 +185,10 @@ int main(int argc, char* argv[]) {
 				lout.flush();
 				
 				neuralNetwork.train(examples, BATCH_SIZE);
-				if (!neuralNetwork.save("models/temp2.pt")) {
-					lout << "ERROR: Current model did not save correctly to models/temp2.pt" << '\n';
+				std::filesystem::create_directory(training_folder / "models");
+				const auto tmp2_nn_path = training_folder / "models" / (iter_str + "_temp.pt");
+				if (!neuralNetwork.save(tmp2_nn_path.string())) {
+					lout << "ERROR: Current model did not save correctly to models/temp.pt" << '\n';
 				}
 			}
 
