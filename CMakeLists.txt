@@ -5,7 +5,7 @@ list(APPEND CMAKE_PREFIX_PATH "C:\\libtorch")
 
 find_package(Torch REQUIRED)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
     
 set(CONSOLE_SOURCE_FILES
     src/game/GameStateConstants.h

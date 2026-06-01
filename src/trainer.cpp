@@ -145,7 +145,7 @@ int main(int argc, char* argv[]) {
 				gmout << std::defaultfloat;
 				gmout.flush();
 
-				lout << "Finished " << (episode + 1) << " episode(s) in " << std::chrono::duration_cast<std::chrono::minutes>(std::chrono::steady_clock::now()-begin).count() << " minutes." << '\n';
+				lout << "Finished " << (episode + 1) << " episode(s) in " << std::chrono::duration_cast<std::chrono::minutes>(std::chrono::steady_clock::now()-begin).count() << " minutes." << Logger::ReturnOpt::ReplaceWithCaretOnce << '\n';
 				lout.flush();
 
 				delete curGameState;

@@ -28,9 +28,27 @@ public:
 		return *this;
 	}
 	void flush();
+
+	enum class ReturnOpt
+	{
+		ReplaceWithCaretOnce,
+		ReplaceWithCaret,
+		Pass
+	};
+
 private:
 	std::ofstream file;
-
+	struct Options
+	{
+		ReturnOpt console_return_caret = ReturnOpt::Pass;
+	} options;
 };
+
+
+template<>
+Logger& Logger::operator<< (const char& arg);
+
+template<>
+Logger& Logger::operator<< (const ReturnOpt& arg);
 
 #endif

@@ -33,3 +33,25 @@ void Logger::flush()
 {
 	file.flush();
 }
+
+template<>
+Logger& Logger::operator<< (const char& arg)
+{
+	file << arg;
+	if (options.console_return_caret != ReturnOpt::Pass && arg == '\n') {
+		if (options.console_return_caret == ReturnOpt::ReplaceWithCaretOnce)
+			options.console_return_caret = ReturnOpt::Pass;
+		std::cout << '\r';
+	}
+	else {
+		std::cout << arg;
+	}
+	return *this;
+}
+
+template<>
+Logger& Logger::operator<< (const ReturnOpt& arg)
+{
+	options.console_return_caret = arg;
+	return *this;
+}
