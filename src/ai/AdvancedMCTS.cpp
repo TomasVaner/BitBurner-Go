@@ -91,6 +91,10 @@ float AdvancedMCTS::simulate(GameState* potentialLeaf) {
 		for (unsigned int i = 0; i < potentialLeaf->getValidMoves()->size(); i++) {
 			float selectionScore;
 
+			//Network output slot 0 is pass, slot N+1 is cell N
+			const int priorSlot = potentialLeaf->getValidMoves()->at(i) + 1;
+			const float prior = leafStateInfoIter->second.validMoveProbabilities.at(priorSlot);
+
 			auto childStateInfoIter = stateInfos.find(potentialLeaf->getChild(i));
 			if (childStateInfoIter != stateInfos.end()) {
 				//Child value ranges from 0 to 1
@@ -102,12 +106,12 @@ float AdvancedMCTS::simulate(GameState* potentialLeaf) {
 				}
 
 
-				
+
 				//Uses PUCT
-				selectionScore = childValue + EXPLORATION_PARAMETER * leafStateInfoIter->second.validMoveProbabilities.at(i) * sqrtf(leafStateInfoIter->second.visits + 1) / (childStateInfoIter->second.visits + 1);
+				selectionScore = childValue + EXPLORATION_PARAMETER * prior * sqrtf(leafStateInfoIter->second.visits + 1) / (childStateInfoIter->second.visits + 1);
 			} else {
 				//Substitutes 0.5 for childValue
-				selectionScore = 0.5f + EXPLORATION_PARAMETER * leafStateInfoIter->second.validMoveProbabilities.at(i) * sqrtf(leafStateInfoIter->second.visits + 1);
+				selectionScore = 0.5f + EXPLORATION_PARAMETER * prior * sqrtf(leafStateInfoIter->second.visits + 1);
 			}
 
 			if (selectionScore > bestSelectionScore) {
@@ -155,7 +159,9 @@ void AdvancedMCTS::addDirichletNoise(GameState* gameState) {
 	}
 
 	for (int i = 0; i < dirichlet.size(); i++) {
-		const float prior = stateInfoIter->second.validMoveProbabilities.at(i);
-		stateInfoIter->second.validMoveProbabilities.at(i) = (1 - DIRICHLET_SCALAR) * prior + DIRICHLET_SCALAR * (dirichlet.at(i) / sum);
+		//Network output slot 0 is pass, slot N+1 is cell N
+		const int slot = gameState->getValidMoves()->at(i) + 1;
+		const float prior = stateInfoIter->second.validMoveProbabilities.at(slot);
+		stateInfoIter->second.validMoveProbabilities.at(slot) = (1 - DIRICHLET_SCALAR) * prior + DIRICHLET_SCALAR * (dirichlet.at(i) / sum);
 	}
 }
