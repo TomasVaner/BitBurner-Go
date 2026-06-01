@@ -3,6 +3,7 @@
 
 #include "GameState.h"
 
+#include "BitburnerBoardGen.h"
 #include "GameStateConstants.h"
 
 GameState* GameState::newGame(const char color, const std::string& board, const std::vector<std::string>& previousBoards) {
@@ -17,26 +18,7 @@ GameState* GameState::newGame(const char color, const std::string& board, const 
 }
 
 std::string GameState::getRandomBoard(std::mt19937_64& rng) {
-	std::string board;
-	std::uniform_real_distribution distribution(0.0, 1.0);
-	for (unsigned int i = 0; i < AREA; i++) {
-		const double value = distribution(rng);
-		if (value <= 0.001) {
-			//0.1% chance
-			board.push_back('X');
-		} else if (value <= 0.003) {
-			//0.2% chance
-			board.push_back('O');
-		} else if (value <= 0.15) {
-			//10.7% chance
-			board.push_back('#');
-		} else {
-			//89% chance
-			board.push_back('.');
-		}
-	}
-
-	return board;
+	return ::getNewBoardStateBitburner(rng);
 }
 
 char GameState::flipColor(const char color) {
