@@ -21,8 +21,9 @@ int main(int argc, char* argv[]) {
 	std::filesystem::path training_folder = date_stream.str();
 	std::filesystem::create_directory(training_folder);
 
+	Logger lout((training_folder / "trainerLog.txt").string());
+
 	NeuralNetwork neuralNetwork;
-	std::ofstream lout("trainerLog.txt", std::ios::app);
 	lout << "Starting up" << '\n';
 	if (argc >= 2) {
 		if (!neuralNetwork.load(argv[1])) {

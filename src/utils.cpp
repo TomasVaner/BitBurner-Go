@@ -23,3 +23,13 @@ std::vector<std::string> split(const std::string& str, const char delimiter, con
 	
 	return parts;
 }
+
+Logger::Logger(const std::string& file_name)
+	:file(file_name, std::ios::app)
+{
+}
+
+void Logger::flush()
+{
+	file.flush();
+}

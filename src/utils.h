@@ -1,6 +1,8 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+#include <fstream>
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -12,5 +14,23 @@
  * @return vector with all the parts of the string split by the given delimiter
  */
 std::vector<std::string> split(const std::string& str, const char delimiter, bool allowEmpty = false);
+
+class Logger
+{
+public:
+	Logger(const std::string& file_name);
+
+	template<typename T>
+	Logger& operator<< (const T& arg)
+	{
+		file << arg;
+		std::cout << arg;
+		return *this;
+	}
+	void flush();
+private:
+	std::ofstream file;
+
+};
 
 #endif
