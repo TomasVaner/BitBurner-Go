@@ -24,7 +24,8 @@ public:
 	Logger& operator<< (const T& arg)
 	{
 		file << arg;
-		std::cout << arg;
+		if (options.cout_ignore == IgnoreCoutOpt::Keep)
+			std::cout << arg;
 		return *this;
 	}
 	void flush();
@@ -36,19 +37,28 @@ public:
 		Pass
 	};
 
+	enum class IgnoreCoutOpt
+	{
+		Keep,
+		Ignore,
+	};
+
 private:
 	std::ofstream file;
 	struct Options
 	{
 		ReturnOpt console_return_caret = ReturnOpt::Pass;
+		IgnoreCoutOpt cout_ignore = IgnoreCoutOpt::Keep;
 	} options;
 };
-
 
 template<>
 Logger& Logger::operator<< (const char& arg);
 
 template<>
 Logger& Logger::operator<< (const ReturnOpt& arg);
+
+template<>
+Logger& Logger::operator<< (const IgnoreCoutOpt& arg);
 
 #endif

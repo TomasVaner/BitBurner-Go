@@ -89,6 +89,7 @@ int main(int argc, char* argv[]) {
 
 			for (int episode = 0; episode < NUM_EPISODES; episode++) {
 				GameState* curGameState = GameState::newGame('O', GameState::getRandomBoard(rng));
+				lout << Logger::IgnoreCoutOpt::Ignore << *curGameState << Logger::IgnoreCoutOpt::Keep;
 				
 				int turns = 0;
 				std::vector<float> probabilities;
