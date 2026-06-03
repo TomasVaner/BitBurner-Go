@@ -1,8 +1,21 @@
 #include <algorithm>
+#include <sstream>
 
 #include "GameStateData.h"
 
 #include "NeuralNetwork.h"
+
+NeuralNetwork::NeuralNetwork(const NeuralNetwork& other) {
+	std::ostringstream buffer;
+	torch::serialize::OutputArchive outputArchive;
+	other.net.save(outputArchive);
+	outputArchive.save_to(buffer);
+
+	std::istringstream inputBuffer(buffer.str());
+	torch::serialize::InputArchive inputArchive;
+	inputArchive.load_from(inputBuffer);
+	net.load(inputArchive);
+}
 
 std::pair<std::vector<float>, float> NeuralNetwork::predict(const GameState* gameState) {
 	torch::Device device = torch::cuda::is_available() ? torch::Device(torch::kCUDA) : torch::Device(torch::kCPU);

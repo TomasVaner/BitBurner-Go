@@ -12,6 +12,14 @@
 
 class NeuralNetwork {
 public:
+	NeuralNetwork() = default;
+
+	/**
+	 * @brief Deep-copies network weights from another network (for thread-local inference).
+	 * @param other network to copy from
+	 */
+	NeuralNetwork(const NeuralNetwork& other);
+
 	/**
 	 * @brief Runs given state through neural net and returns the results
 	 * @param gameState game state to run through neural net  

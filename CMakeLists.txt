@@ -73,6 +73,8 @@ set(TRAINER_SOURCE_FILES
     src/trainer.cpp
 )
 add_executable(trainer ${TRAINER_SOURCE_FILES})
+target_include_directories(trainer PUBLIC ${Boost_INCLUDE_DIRS})
+target_link_libraries(trainer ${Boost_LIBRARIES})
 target_link_libraries(trainer "${TORCH_LIBRARIES}")
 
 file(GLOB TORCH_DLLS "${TORCH_INSTALL_PREFIX}/lib/*.dll")

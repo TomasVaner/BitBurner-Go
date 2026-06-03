@@ -6,6 +6,9 @@
 #include <chrono>
 #include <random>
 #include <ctime>
+#include <atomic>
+#include <boost/asio/thread_pool.hpp>
+#include <boost/asio/post.hpp>
 
 #include "ai/NeuralNetwork.h"
 #include "ai/MCTS.h"
@@ -42,18 +45,16 @@ int main(int argc, char* argv[]) {
 	
 	std::vector<int> config;
 	int iTemp;
-	for (int i = 0; i < 11; i++) {
-		fin >> iTemp;
-		
-		if (fin.fail()) {
-			lout << "FATAL: Config file did not load correctly" << '\n';
-			return 1;
-		}
-		
+	while (fin >> iTemp) {
 		config.push_back(iTemp);
 		fin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 	}
 	fin.close();
+
+	if (config.size() < 11) {
+		lout << "FATAL: Config file did not load correctly" << '\n';
+		return 1;
+	}
 	
 	const int NUM_ITERATIONS = config.at(0);
 	const int NUM_EPISODES = config.at(1);
@@ -66,15 +67,15 @@ int main(int argc, char* argv[]) {
 	const int DISPLAY_GAMES = config.at(8);
 	const int MAXIMUM_TURNS = config.at(9);
 	const float RESULT_WEIGHT = config.at(10) / 100.0f;
-
-	std::random_device seeder;
-	auto rng = std::mt19937_64(seeder());
-	std::uniform_real_distribution distribution(0.0, 1.0);
-	AdvancedMCTS mcts(&neuralNetwork, NUM_SIMULATIONS);
+	const int SELF_PLAY_WORKERS = config.size() > 11 ? std::max(1, config.at(11)) : 1;
+	const int MAX_IN_FLIGHT_EPISODES = config.size() > 12 ? std::max(1, config.at(12)) : std::numeric_limits<int>::max();
+	const unsigned int DETERMINISTIC_SEED_BASE = config.size() > 13 ? static_cast<unsigned int>(config.at(13)) : std::random_device{}();
+	auto rng = std::mt19937_64(DETERMINISTIC_SEED_BASE);
+	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 	for (int iteration = 0; iteration < NUM_ITERATIONS; iteration++) {
 		lout << "Starting iteration " << iteration << '\n';
 		lout.flush();
-		std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+		std::chrono::steady_clock::time_point selfPlayBegin = std::chrono::steady_clock::now();
 		auto iter_str = std::format("{:0>3}", iteration);
 		auto ex_path = training_folder / (iter_str + "_gameMCTSTemp.ex");
 		auto multi_gm_path = training_folder / (iter_str + "_multiGameMCTSTemp.gm");
@@ -84,77 +85,106 @@ int main(int argc, char* argv[]) {
 			lout << std::chrono::duration_cast<std::chrono::minutes>(std::chrono::steady_clock::now()-begin).count() << " minutes have passed" << '\n';
 			lout.flush();
 
-			std::ofstream exout(ex_path, std::ios::app);
-			std::ofstream gmout(multi_gm_path, std::ios::app);
+			const int requestedWorkers = SELF_PLAY_WORKERS;
+			const int effectiveWorkers = std::max(1, std::min({requestedWorkers, NUM_EPISODES, MAX_IN_FLIGHT_EPISODES}));
 
-			for (int episode = 0; episode < NUM_EPISODES; episode++) {
-				GameState* curGameState = GameState::newGame('O', GameState::getRandomBoard(rng));
-				lout << Logger::IgnoreCoutOpt::Ignore << *curGameState << Logger::IgnoreCoutOpt::Keep;
-				
-				int turns = 0;
-				std::vector<float> probabilities;
-				std::vector<std::tuple<std::vector<uint8_t>, std::vector<float>, float>> turnInformation;
-				while (curGameState->getEndState() < -1) {
-					probabilities = mcts.getMoveProbabilities(curGameState);
-					
-					turnInformation.emplace_back(toVector(curGameState), probabilities, mcts.getMoveValue(curGameState));
+			struct EpisodeResult {
+				std::vector<Example> examples;
+				float result = 0.0f;
+			};
+			std::vector<EpisodeResult> episodeResults(NUM_EPISODES);
+			std::atomic<int> finishedEpisodes = 0;
 
-					int moveNum = 0;
-					if (turns < EXPLORATION_TURNS) {
-						float total = 0;
-						auto target = static_cast<float>(distribution(rng));
-						for (int i = 0; i < curGameState->getValidMoves()->size(); i++) {
-							total += probabilities[curGameState->getValidMoves()->at(i) + 1];
-							if (target < total) {
-								moveNum = i;
-								break;
+			std::vector<NeuralNetwork> workerNetworks(static_cast<size_t>(effectiveWorkers), neuralNetwork);
+
+			boost::asio::thread_pool pool(effectiveWorkers);
+			for (int worker = 0; worker < effectiveWorkers; worker++) {
+				boost::asio::post(pool, [&, worker] {
+					AdvancedMCTS workerMcts(&workerNetworks[static_cast<size_t>(worker)], NUM_SIMULATIONS);
+					std::uniform_real_distribution distribution(0.0, 1.0);
+					std::mt19937_64 workerRng(DETERMINISTIC_SEED_BASE + static_cast<unsigned int>(iteration * 10007 + worker * 379 + 17));
+
+					for (int episode = worker; episode < NUM_EPISODES; episode += effectiveWorkers) {
+						GameState* curGameState = GameState::newGame('O', GameState::getRandomBoard(workerRng));
+						int turns = 0;
+						std::vector<float> probabilities;
+						std::vector<std::tuple<std::vector<uint8_t>, std::vector<float>, float>> turnInformation;
+						while (curGameState->getEndState() < -1) {
+							probabilities = workerMcts.getMoveProbabilities(curGameState);
+							turnInformation.emplace_back(toVector(curGameState), probabilities, workerMcts.getMoveValue(curGameState));
+
+							int moveNum = 0;
+							if (turns < EXPLORATION_TURNS) {
+								float total = 0;
+								auto target = static_cast<float>(distribution(workerRng));
+								for (int i = 0; i < curGameState->getValidMoves()->size(); i++) {
+									total += probabilities[curGameState->getValidMoves()->at(i) + 1];
+									if (target < total) {
+										moveNum = i;
+										break;
+									}
+								}
+							} else {
+								float highestProbability = -1;
+								int bestMove = -1;
+								for (int i = 0; i < curGameState->getValidMoves()->size(); i++) {
+									float probability = probabilities[curGameState->getValidMoves()->at(i) + 1];
+									if (probability > highestProbability) {
+										highestProbability = probability;
+										bestMove = i;
+									}
+								}
+								moveNum = bestMove;
 							}
+
+							GameState* child = curGameState->getChild(moveNum, false);
+							delete curGameState;
+							curGameState = child;
+							workerMcts.reset();
+							turns++;
 						}
-					} else {
-						float highestProbability = -1;
-						int bestMove = -1;
-						for (int i = 0; i < curGameState->getValidMoves()->size(); i++) {
-							float probability = probabilities[curGameState->getValidMoves()->at(i) + 1];
-							if (probability > highestProbability) {
-								highestProbability = probability;
-								bestMove = i;
-							}
+						float result = curGameState->getEndState();
+						for (auto& turnInfo : turnInformation) {
+							std::get<2>(turnInfo) = std::get<2>(turnInfo) * (1 - RESULT_WEIGHT) + result * RESULT_WEIGHT;
 						}
-						
-						moveNum = bestMove;
+						episodeResults[episode].examples = Example::load(turnInformation);
+						episodeResults[episode].result = result;
+						delete curGameState;
+						auto fe = finishedEpisodes.fetch_add(1);
+
+						if (worker == effectiveWorkers - 1 || episode == NUM_EPISODES - 1)
+							lout << "Finished " << (fe + 1) << " episode(s) in " << std::chrono::duration_cast<std::chrono::minutes>(std::chrono::steady_clock::now() - selfPlayBegin).count() << " minutes." << Logger::ReturnOpt::ReplaceWithCaretOnce << '\n';
+
 					}
-					
-					GameState* child = curGameState->getChild(moveNum, false);
-					delete curGameState;
-					curGameState = child;
-					mcts.reset();
-					turns++;
-				}
-				
-				float result = curGameState->getEndState();
-				
-				for (auto& turnInfo : turnInformation) {
-					//Uses combination of neural network's evaluation and game result as target
-					std::get<2>(turnInfo) = std::get<2>(turnInfo) * (1 - RESULT_WEIGHT) + result * RESULT_WEIGHT;
-				}
+				});
+			}
+			pool.join();
+			std::cout << '\n';
 
-				Example::save(exout, Example::load(turnInformation));
-				exout.flush();
-
-				gmout << std::fixed;
-				gmout << result << '\n';
-				gmout << std::defaultfloat;
-				gmout.flush();
-
-				lout << "Finished " << (episode + 1) << " episode(s) in " << std::chrono::duration_cast<std::chrono::minutes>(std::chrono::steady_clock::now()-begin).count() << " minutes." << Logger::ReturnOpt::ReplaceWithCaretOnce << '\n';
-				lout.flush();
-
-				delete curGameState;
+			if (finishedEpisodes.load() != NUM_EPISODES) {
+				lout << "FATAL: Only finished " << finishedEpisodes.load() << " of " << NUM_EPISODES << " episodes" << '\n';
+				return 1;
 			}
 
+			std::ofstream exout(ex_path, std::ios::app);
+			std::ofstream gmout(multi_gm_path, std::ios::app);
+			for (int episode = 0; episode < NUM_EPISODES; episode++) {
+				Example::save(exout, episodeResults[episode].examples);
+				gmout << std::fixed;
+				gmout << episodeResults[episode].result << '\n';
+				gmout << std::defaultfloat;
+			}
+			exout.flush();
+			gmout.flush();
 			exout.close();
 			gmout.close();
+
+			lout << "Finished " << NUM_EPISODES << " episode(s) in "
+				 << std::chrono::duration_cast<std::chrono::minutes>(std::chrono::steady_clock::now() - selfPlayBegin).count()
+				 << " minutes with " << effectiveWorkers << " worker(s)." << '\n';
+			lout.flush();
 		}
+		const auto selfPlayMinutes = std::chrono::duration_cast<std::chrono::minutes>(std::chrono::steady_clock::now() - selfPlayBegin).count();
 
 		fin.open(ex_path);
 
@@ -187,16 +217,20 @@ int main(int argc, char* argv[]) {
 				lout.flush();
 				
 				neuralNetwork.train(examples, BATCH_SIZE);
-				std::filesystem::create_directory(training_folder / "models");
-				const auto tmp2_nn_path = training_folder / "models" / (iter_str + "_temp.pt");
-				if (!neuralNetwork.save(tmp2_nn_path.string())) {
-					lout << "ERROR: Current model did not save correctly to models/temp.pt" << '\n';
-				}
 			}
 
 			fin.close();
 		}
+		std::filesystem::create_directory(training_folder / "models");
+		const auto tmp2_nn_path = training_folder / "models" / (iter_str + "_temp.pt");
+		if (!neuralNetwork.save(tmp2_nn_path.string())) {
+			lout << "ERROR: Current model did not save correctly to models/temp.pt" << '\n';
+		}
 		
+		const auto totalMinutes = std::chrono::duration_cast<std::chrono::minutes>(std::chrono::steady_clock::now() - begin).count();
+		const auto trainMinutes = totalMinutes - selfPlayMinutes;
+		lout << "Validation: generated " << NUM_EPISODES << " episodes for iteration " << iteration << '\n';
+		lout << "Timing split (minutes) selfPlay=" << selfPlayMinutes << " train=" << trainMinutes << " total=" << totalMinutes << '\n';
 		lout << "Iteration " << iteration << " took " << std::chrono::duration_cast<std::chrono::minutes>(std::chrono::steady_clock::now()-begin).count() << " minutes" << '\n';
 		lout.flush();
 	}
