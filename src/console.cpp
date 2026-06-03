@@ -27,7 +27,9 @@ int main(int argc, char* argv[]) {
 		mcts2 = new AdvancedMCTS(&neuralNetwork2, std::stoi(argv[4]));
 	}
 
-	GameState* gameState = GameState::newGame('X', "#...#.....#.O...........#");
+	auto rng = std::mt19937_64(std::random_device{}());
+
+	GameState* gameState = GameState::newGame('X', GameState::getRandomBoard(rng));
 	gameState->printGameState();
 
 	while (gameState->getEndState() < -1) {
