@@ -25,7 +25,7 @@ public:
 	 * @param gameState game state to run through neural net  
 	 * @return pairs with the move probabilities of the given board and the value of the given board
 	 */
-	std::pair<std::vector<float>, float> predict(const GameState* gameState);
+	std::pair<std::vector<float>, float> predict(GameState* gameState);
 
 	/**
 	 * @brief Trains neural net on given examples using the given batch size

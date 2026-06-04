@@ -13,6 +13,7 @@
 #include "ai/NeuralNetwork.h"
 #include "ai/MCTS.h"
 #include "ai/Example.h"
+#include "ai/GameStateData.h"
 #include "utils.h"
 
 int main(int argc, char* argv[]) {
@@ -108,10 +109,14 @@ int main(int argc, char* argv[]) {
 						GameState* curGameState = GameState::newGame('O', GameState::getRandomBoard(workerRng));
 						int turns = 0;
 						std::vector<float> probabilities;
-						std::vector<std::tuple<std::vector<uint8_t>, std::vector<float>, float>> turnInformation;
+						std::vector<std::tuple<std::vector<float>, std::vector<float>, float, char>> turnInformation;
 						while (curGameState->getEndState() < -1) {
 							probabilities = workerMcts.getMoveProbabilities(curGameState);
-							turnInformation.emplace_back(toVector(curGameState), probabilities, workerMcts.getMoveValue(curGameState));
+							turnInformation.emplace_back(
+								toVector(curGameState),
+								probabilities,
+								workerMcts.getMoveValue(curGameState),
+								curGameState->getColor());
 
 							int moveNum = 0;
 							if (turns < EXPLORATION_TURNS) {
@@ -143,11 +148,16 @@ int main(int argc, char* argv[]) {
 							workerMcts.reset();
 							turns++;
 						}
-						float result = curGameState->getEndState();
+						const float result = curGameState->getEndState();
+						std::vector<std::tuple<std::vector<float>, std::vector<float>, float>> labeledTurns;
+						labeledTurns.reserve(turnInformation.size());
 						for (auto& turnInfo : turnInformation) {
-							std::get<2>(turnInfo) = std::get<2>(turnInfo) * (1 - RESULT_WEIGHT) + result * RESULT_WEIGHT;
+							const char moverColor = std::get<3>(turnInfo);
+							const float z = moverColor == 'O' ? result : -result;
+							float value = std::get<2>(turnInfo) * (1 - RESULT_WEIGHT) + z * RESULT_WEIGHT;
+							labeledTurns.emplace_back(std::get<0>(turnInfo), std::get<1>(turnInfo), value);
 						}
-						episodeResults[episode].examples = Example::load(turnInformation);
+						episodeResults[episode].examples = Example::load(labeledTurns);
 						episodeResults[episode].result = result;
 						delete curGameState;
 						auto fe = finishedEpisodes.fetch_add(1);

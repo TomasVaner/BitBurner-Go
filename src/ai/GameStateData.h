@@ -5,26 +5,23 @@
 #include "../game/GameStateConstants.h"
 
 /**
- * @brief Size of vector representing game state
+ * Neural input planes (channel index = plane). Order is checkpoint-critical.
+ * 0 walls (#)
+ * 1 myStones
+ * 2 enemyStones
+ * 3 legalMoves (valid intersections only, not pass)
+ * 4 myControlledEmpty
+ * 5 enemyControlledEmpty
+ * 6 myLibertyUrgency (1/n on my stones)
+ * 7 enemyLibertyUrgency (1/n on enemy stones)
+ * 8 lastOpponentMove
  */
-constexpr int GAME_STATE_DATA_SIZE[3] = {1 + 1 + 8 * 2, SIDE_LENGTH, SIDE_LENGTH};
-/**
- * @brief Length of vector representing game state
- */
-constexpr int GAME_STATE_DATA_LENGTH = GAME_STATE_DATA_SIZE[0] * GAME_STATE_DATA_SIZE[1] * GAME_STATE_DATA_SIZE[2];
-	
-/**
- * @brief Represents a game state as a vector
- * @param gameState game state to convert
- * @return vector representation of game state
- */
-std::vector<uint8_t> toVector(const GameState* gameState);
+constexpr int GAME_STATE_PLANE_COUNT = 9;
+constexpr int GAME_STATE_DATA_SIZE[3] = {GAME_STATE_PLANE_COUNT, SIDE_LENGTH, SIDE_LENGTH};
+constexpr int GAME_STATE_DATA_LENGTH = GAME_STATE_PLANE_COUNT * SIDE_LENGTH * SIDE_LENGTH;
 
-/**
- * @brief Converts game state data back into a game state ignoring previous boards
- * @param data vector representation of game state
- * @return game state
- */
-GameState* getGameState(const std::vector<uint8_t>& data);
+std::vector<float> toVector(GameState* gameState);
+
+GameState* getGameState(const std::vector<float>& data);
 
 #endif

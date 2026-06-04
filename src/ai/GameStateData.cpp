@@ -1,76 +1,68 @@
 #include "GameStateData.h"
 
-std::vector<uint8_t> toVector(const GameState* gameState) {
-	std::vector<uint8_t> data;
-	data.reserve(GAME_STATE_DATA_LENGTH);
-	const bool white = gameState->getColor() == 'O';
-	const std::string* board = gameState->getBoard();
-	const std::vector<std::string>* previousBoards = gameState->getPreviousBoards();
-	for (unsigned int i = 0; i < GAME_STATE_DATA_SIZE[0]; i++) {
-		for (unsigned int j = 0; j < GAME_STATE_DATA_SIZE[1]; j++) {
-			for (unsigned int k = 0; k < GAME_STATE_DATA_SIZE[2]; k++) {
-				if (i == 0) {
-					//Current player's color
-					data.push_back(white);
-				} else if (i == 1) {
-					//Blocked spaces
-					data.push_back((*board)[j * SIDE_LENGTH + k] == '#');
-				} else if (i % 2 == 0) {
-					if (i / 2 == 1) {
-						//Current board's white spaces
-						data.push_back((*board)[j * SIDE_LENGTH + k] == 'O');
-					} else if (i / 2 - 2 < previousBoards->size()) {
-						//Previous board's white spaces
-						data.push_back((*previousBoards)[previousBoards->size() - i / 2 + 1][j * SIDE_LENGTH + k] == 'O');
-					} else {
-						//Non existent
-						data.push_back(2);
-					}
-				} else {
-					if (i / 2 == 1) {
-						//Current board's black spaces
-						data.push_back((*board)[j * SIDE_LENGTH + k] == 'X');
-					} else if (i / 2 - 2 < previousBoards->size()) {
-						//Previous board's black spaces
-						data.push_back((*previousBoards)[previousBoards->size() - i / 2 + 1][j * SIDE_LENGTH + k] == 'X');
-					} else {
-						//Non existent
-						data.push_back(2);
-					}
-				}
-			}
+#include "../game/BoardAnalytics.h"
+
+namespace {
+
+void setPlane(std::vector<float>& data, const int plane, const unsigned int index, const float value) {
+	data[plane * AREA + index] = value;
+}
+
+float getPlane(const std::vector<float>& data, const int plane, const unsigned int index) {
+	return data[plane * AREA + index];
+}
+
+} // namespace
+
+std::vector<float> toVector(GameState* gameState) {
+	std::vector<float> data(GAME_STATE_DATA_LENGTH, 0.0f);
+	const char myColor = gameState->getColor();
+	const char enemyColor = GameState::flipColor(myColor);
+	const std::string& board = *gameState->getBoard();
+	const ControlledEmpty controlled = computeControlledEmpty(board, myColor);
+	const LibertyUrgency liberties = computeLibertyUrgency(board, myColor);
+
+	for (unsigned int index = 0; index < AREA; index++) {
+		const char cell = board[index];
+		if (cell == '#') {
+			setPlane(data, 0, index, 1.0f);
+		} else if (cell == myColor) {
+			setPlane(data, 1, index, 1.0f);
+		} else if (cell == enemyColor) {
+			setPlane(data, 2, index, 1.0f);
+		}
+
+		setPlane(data, 4, index, controlled.myControlled[index]);
+		setPlane(data, 5, index, controlled.enemyControlled[index]);
+		setPlane(data, 6, index, liberties.myUrgency[index]);
+		setPlane(data, 7, index, liberties.enemyUrgency[index]);
+	}
+
+	for (const int move : *gameState->getValidMoves()) {
+		if (move >= 0) {
+			setPlane(data, 3, static_cast<unsigned int>(move), 1.0f);
 		}
 	}
-	
+
+	const int lastOpponentMove = gameState->getLastOpponentMoveIndex();
+	if (lastOpponentMove >= 0 && static_cast<unsigned int>(lastOpponentMove) < AREA) {
+		setPlane(data, 8, static_cast<unsigned int>(lastOpponentMove), 1.0f);
+	}
+
 	return data;
 }
 
-GameState* getGameState(const std::vector<uint8_t>& data) {
-	const bool color = data.at(0);
-	std::string board;
-	for (unsigned int i = 0; i < AREA; i++) {
-		board.push_back('.');
-	}
-
-	for (unsigned int i = 1; i <= 3; i++) {
-		for (unsigned int j = 0; j < GAME_STATE_DATA_SIZE[1]; j++) {
-			for (unsigned int k = 0; k < GAME_STATE_DATA_SIZE[2]; k++) {
-				if (i == 1) {
-					if (data.at(i * GAME_STATE_DATA_SIZE[1] * GAME_STATE_DATA_SIZE[2] + j * GAME_STATE_DATA_SIZE[2] + k)) {
-						board.at(j * SIDE_LENGTH + k) = '#';
-					}
-				} else if (i == 2) {
-					if (data.at(i * GAME_STATE_DATA_SIZE[1] * GAME_STATE_DATA_SIZE[2] + j * GAME_STATE_DATA_SIZE[2] + k)) {
-						board.at(j * SIDE_LENGTH + k) = 'O';
-					}
-				} else if (i == 3) {
-					if (data.at(i * GAME_STATE_DATA_SIZE[1] * GAME_STATE_DATA_SIZE[2] + j * GAME_STATE_DATA_SIZE[2] + k)) {
-						board.at(j * SIDE_LENGTH + k) = 'X';
-					}
-				}
-			}
+GameState* getGameState(const std::vector<float>& data) {
+	std::string board(AREA, '.');
+	for (unsigned int index = 0; index < AREA; index++) {
+		if (getPlane(data, 0, index) >= 0.5f) {
+			board[index] = '#';
+		} else if (getPlane(data, 1, index) >= 0.5f) {
+			board[index] = 'X';
+		} else if (getPlane(data, 2, index) >= 0.5f) {
+			board[index] = 'O';
 		}
 	}
 
-	return GameState::newGame(color ? 'O' : 'X', board);
+	return GameState::newGame('X', board);
 }

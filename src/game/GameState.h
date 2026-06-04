@@ -85,6 +85,11 @@ public:
 	 * @return a vector with previous boards
 	 */
 	[[nodiscard]] const std::vector<std::string>* getPreviousBoards() const;
+
+	/**
+	 * @brief Board index of the opponent's last stone move, or -1 if none
+	 */
+	[[nodiscard]] int getLastOpponentMoveIndex() const;
 	
 	/**
 	 * @brief Prints the game state to console
@@ -153,6 +158,10 @@ private:
 	 * @brief Whether the last move was a pass
 	 */
 	bool passed;
+	/**
+	 * @brief Index of opponent's last played stone, or -1
+	 */
+	int lastOpponentMoveIndex = -1;
 	/**
 	 * @brief Current player's (player who makes the next move) color 
 	 */

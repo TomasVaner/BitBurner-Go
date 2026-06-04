@@ -10,6 +10,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CONSOLE_SOURCE_FILES
     src/game/GameStateConstants.h
     src/game/GameState.h src/game/GameState.cpp
+    src/game/BoardAnalytics.h src/game/BoardAnalytics.cpp
     src/game/BitburnerBoardGen.h src/game/BitburnerBoardGen.cpp
     src/ai/GameStateData.h src/ai/GameStateData.cpp
     src/ai/Example.h src/ai/Example.cpp
@@ -28,6 +29,7 @@ target_link_libraries(console "${TORCH_LIBRARIES}")
 set(READER_SOURCE_FILES
     src/game/GameStateConstants.h
     src/game/GameState.h src/game/GameState.cpp
+    src/game/BoardAnalytics.h src/game/BoardAnalytics.cpp
     src/game/BitburnerBoardGen.h src/game/BitburnerBoardGen.cpp
     src/ai/GameStateData.h src/ai/GameStateData.cpp
     src/ai/Example.h src/ai/Example.cpp
@@ -41,6 +43,7 @@ find_package(Boost REQUIRED)
 set(MICROSERVICE_SOURCE_FILES
     src/utils.h src/utils.cpp
     src/game/GameState.h src/game/GameState.cpp
+    src/game/BoardAnalytics.h src/game/BoardAnalytics.cpp
     src/game/BitburnerBoardGen.h src/game/BitburnerBoardGen.cpp
     src/ai/GameStateData.h src/ai/GameStateData.cpp
     src/ai/Example.h src/ai/Example.cpp
@@ -61,6 +64,7 @@ target_link_libraries(microservice "${TORCH_LIBRARIES}")
 set(TRAINER_SOURCE_FILES
     src/game/GameStateConstants.h
     src/game/GameState.h src/game/GameState.cpp
+    src/game/BoardAnalytics.h src/game/BoardAnalytics.cpp
     src/game/BitburnerBoardGen.h src/game/BitburnerBoardGen.cpp
     src/ai/GameStateData.h src/ai/GameStateData.cpp
     src/ai/Example.h src/ai/Example.cpp

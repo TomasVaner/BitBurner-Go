@@ -13,6 +13,7 @@ GameState* GameState::newGame(const char color, const std::string& board, const 
 	gameState->passed = std::find(previousBoards.begin(), previousBoards.end(), board) != previousBoards.end();
 
 	gameState->previousBoards = previousBoards;
+	gameState->lastOpponentMoveIndex = -1;
 
 	return gameState;
 }
@@ -121,6 +122,10 @@ const std::vector<std::string>* GameState::getPreviousBoards() const {
 	return &previousBoards;
 }
 
+int GameState::getLastOpponentMoveIndex() const {
+	return lastOpponentMoveIndex;
+}
+
 void GameState::printGameState() const {
 	std::cout << *this;
 }
@@ -220,6 +225,7 @@ GameState* GameState::makeMove(const int move) const {
 	child->color = flipColor(color);
 	child->previousBoards = previousBoards;
 	child->previousBoards.emplace_back(board);
+	child->lastOpponentMoveIndex = move != -1 ? move : lastOpponentMoveIndex;
 	if (move != -1) {
 		child->board = placePiece(move);
 		child->passed = false;
