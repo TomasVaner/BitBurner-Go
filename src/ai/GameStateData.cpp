@@ -4,12 +4,30 @@
 
 namespace {
 
-void setPlane(std::vector<float>& data, const int plane, const unsigned int index, const float value) {
-	data[plane * AREA + index] = value;
+void setPlane(std::vector<float>& data, const GameStatePlane plane, const unsigned int index, const float value) {
+	data[planeIndex(plane) * AREA + index] = value;
 }
 
-float getPlane(const std::vector<float>& data, const int plane, const unsigned int index) {
-	return data[plane * AREA + index];
+float getPlane(const std::vector<float>& data, const GameStatePlane plane, const unsigned int index) {
+	return data[planeIndex(plane) * AREA + index];
+}
+
+void encodePreviousBoard(std::vector<float>& data, const std::string& prevBoard, const char myColor, const char enemyColor) {
+	for (unsigned int index = 0; index < AREA; index++) {
+		const char cell = prevBoard[index];
+		if (cell == myColor) {
+			setPlane(data, GameStatePlane::PrevMyStones, index, 1.0f);
+		} else if (cell == enemyColor) {
+			setPlane(data, GameStatePlane::PrevEnemyStones, index, 1.0f);
+		}
+	}
+}
+
+void fillPreviousBoardUnavailable(std::vector<float>& data) {
+	for (unsigned int index = 0; index < AREA; index++) {
+		setPlane(data, GameStatePlane::PrevMyStones, index, PREV_BOARD_UNAVAILABLE);
+		setPlane(data, GameStatePlane::PrevEnemyStones, index, PREV_BOARD_UNAVAILABLE);
+	}
 }
 
 } // namespace
@@ -25,28 +43,30 @@ std::vector<float> toVector(GameState* gameState) {
 	for (unsigned int index = 0; index < AREA; index++) {
 		const char cell = board[index];
 		if (cell == '#') {
-			setPlane(data, 0, index, 1.0f);
+			setPlane(data, GameStatePlane::Walls, index, 1.0f);
 		} else if (cell == myColor) {
-			setPlane(data, 1, index, 1.0f);
+			setPlane(data, GameStatePlane::MyStones, index, 1.0f);
 		} else if (cell == enemyColor) {
-			setPlane(data, 2, index, 1.0f);
+			setPlane(data, GameStatePlane::EnemyStones, index, 1.0f);
 		}
 
-		setPlane(data, 4, index, controlled.myControlled[index]);
-		setPlane(data, 5, index, controlled.enemyControlled[index]);
-		setPlane(data, 6, index, liberties.myUrgency[index]);
-		setPlane(data, 7, index, liberties.enemyUrgency[index]);
+		setPlane(data, GameStatePlane::MyControlledEmpty, index, controlled.myControlled[index]);
+		setPlane(data, GameStatePlane::EnemyControlledEmpty, index, controlled.enemyControlled[index]);
+		setPlane(data, GameStatePlane::MyLibertyUrgency, index, liberties.myUrgency[index]);
+		setPlane(data, GameStatePlane::EnemyLibertyUrgency, index, liberties.enemyUrgency[index]);
 	}
 
 	for (const int move : *gameState->getValidMoves()) {
 		if (move >= 0) {
-			setPlane(data, 3, static_cast<unsigned int>(move), 1.0f);
+			setPlane(data, GameStatePlane::LegalMoves, static_cast<unsigned int>(move), 1.0f);
 		}
 	}
 
-	const int lastOpponentMove = gameState->getLastOpponentMoveIndex();
-	if (lastOpponentMove >= 0 && static_cast<unsigned int>(lastOpponentMove) < AREA) {
-		setPlane(data, 8, static_cast<unsigned int>(lastOpponentMove), 1.0f);
+	const std::vector<std::string>* previousBoards = gameState->getPreviousBoards();
+	if (previousBoards->empty()) {
+		fillPreviousBoardUnavailable(data);
+	} else {
+		encodePreviousBoard(data, previousBoards->back(), myColor, enemyColor);
 	}
 
 	return data;
@@ -55,11 +75,11 @@ std::vector<float> toVector(GameState* gameState) {
 GameState* getGameState(const std::vector<float>& data) {
 	std::string board(AREA, '.');
 	for (unsigned int index = 0; index < AREA; index++) {
-		if (getPlane(data, 0, index) >= 0.5f) {
+		if (getPlane(data, GameStatePlane::Walls, index) >= 0.5f) {
 			board[index] = '#';
-		} else if (getPlane(data, 1, index) >= 0.5f) {
+		} else if (getPlane(data, GameStatePlane::MyStones, index) >= 0.5f) {
 			board[index] = 'X';
-		} else if (getPlane(data, 2, index) >= 0.5f) {
+		} else if (getPlane(data, GameStatePlane::EnemyStones, index) >= 0.5f) {
 			board[index] = 'O';
 		}
 	}
