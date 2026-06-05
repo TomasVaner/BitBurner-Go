@@ -62,7 +62,7 @@ set(TRAINER_SOURCE_FILES
     src/trainer.cpp
 )
 add_executable(trainer ${TRAINER_SOURCE_FILES})
-target_sources(trainer PRIVATE ${HEXCHESS_CORE_SOURCE_FILES} ${HEXCHESS_AI_SOURCE_FILES})
+target_sources(trainer PRIVATE ${HEXCHESS_CORE_SOURCE_FILES} ${HEXCHESS_AI_SOURCE_FILES} config.txt)
 target_link_libraries(trainer PRIVATE hexchess_core hexchess_ai ${Boost_LIBRARIES})
 target_include_directories(trainer PRIVATE ${Boost_INCLUDE_DIRS})
 
