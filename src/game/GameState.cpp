@@ -53,7 +53,7 @@ std::vector<int>* GameState::getValidMoves() {
 	return &validMoves;
 }
 
-bool GameState::isValid(const int move) {
+bool GameState::isValid(const int move) const {
 	if (!setupMoves) {
 		//Pass is always valid
 		if (move == -1) {
@@ -133,7 +133,12 @@ void GameState::printGameState() const {
 std::ostream& operator<<(std::ostream& out, const GameState& gameState) {
 	for (int y = static_cast<int>(SIDE_LENGTH) - 1; y >= 0; y--) {
 		for (int x = 0; x < static_cast<int>(SIDE_LENGTH); x++) {
-			out << gameState.board[x * SIDE_LENGTH + y];
+			if (gameState.board[x * SIDE_LENGTH + y] == '.' && !gameState.isValid(x * SIDE_LENGTH + y))
+			{
+				out << static_cast<char>(254u);
+			}
+			else
+				out << gameState.board[x * SIDE_LENGTH + y];
 		}
 		out << '\n';
 	}

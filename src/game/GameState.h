@@ -60,7 +60,7 @@ public:
 	 * @param move possible move
 	 * @return whether the move is valid
 	 */
-	bool isValid(int move);
+	bool isValid(int move) const;
 	
 	/**
 	 * @brief Returns the end state of this object 

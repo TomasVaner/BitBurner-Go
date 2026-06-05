@@ -1,75 +1,122 @@
 #include <iostream>
 
+#include "utils.h"
 #include "game/GameState.h"
 #include "ai/BasicMCTS.h"
 #include "ai/AdvancedMCTS.h"
 
 int main(int argc, char* argv[]) {
-	if (argc < 5) {
-		std::cout << "Please give 4 arguments: model1 path or the word basic, mcts1 simulations, model2 path or the word basic, mcts2 simulations" << '\n';
-	}
+	std::vector<std::shared_ptr<MCTS>> mcts;
+	std::vector<NeuralNetwork> neuronNetworks;
 
-	MCTS* mcts1;
-	MCTS* mcts2;
-	NeuralNetwork neuralNetwork1, neuralNetwork2;
-
-	if (strlen(argv[1]) == 5 && strncmp(argv[1], "basic", 5) == 0) {
-		mcts1 = new BasicMCTS(std::stoi(argv[2]));
-	} else {
-		neuralNetwork1.load(argv[1]);
-		mcts1 = new AdvancedMCTS(&neuralNetwork1, std::stoi(argv[2]));
-	}
-
-	if (strlen(argv[3]) == 5 && strncmp(argv[3], "basic", 5) == 0) {
-		mcts2 = new BasicMCTS(std::stoi(argv[4]));
-	} else {
-		neuralNetwork2.load(argv[3]);
-		mcts2 = new AdvancedMCTS(&neuralNetwork2, std::stoi(argv[4]));
+	for (int i = 1; i < argc; i += 2)
+	{
+		if (strncmp(argv[i], "basic", 5) == 0)
+		{
+			mcts.push_back(std::make_shared<BasicMCTS>(std::stoi(argv[i + 1])));
+		}
+		else
+		{
+			neuronNetworks.emplace_back();
+			neuronNetworks.back().load(argv[i]);
+			mcts.push_back(std::make_shared<AdvancedMCTS>(&neuronNetworks.back(), std::stoi(argv[i + 1])));
+		}
 	}
 
 	auto rng = std::mt19937_64(std::random_device{}());
+	
+	bool keep_play = true;
+	while (keep_play)
+	{
+		auto gameState = GameState::newGame('X', GameState::getRandomBoard(rng));
+		gameState->printGameState();
 
-	GameState* gameState = GameState::newGame('X', GameState::getRandomBoard(rng));
-	gameState->printGameState();
+		while (gameState->getEndState() < -1) {
+			std::vector<std::vector<float>> moveProbabilities;
+			moveProbabilities.reserve(mcts.size());
+			for (const auto& m : mcts)
+				moveProbabilities.emplace_back(m->getMoveProbabilities(gameState));
 
-	while (gameState->getEndState() < -1) {
-		std::vector<float> moveProbabilities1 = mcts1->getMoveProbabilities(gameState);
-		std::vector<float> moveProbabilities2 = mcts2->getMoveProbabilities(gameState);
-
-		std::cout << std::left;
-		std::cout << std::setw(3) << "i "
-				  << std::setw(5) << "Move "
-				  << std::setw(12) << "Prob 1"
-				  << std::setw(12) << "Prob 2"
-				  << std::setw(12) << "Value 1"
-				  << std::setw(12) << "Value 2" << '\n';
+			std::cout << std::left;
+			std::cout << std::setw(3) << "i"
+					  << std::setw(7) << "M";
 		
-		for (unsigned int i = 0; i < gameState->getValidMoves()->size(); i++) {
-			std::cout << std::setw(3) << i
-					  << std::setw(5) << gameState->getValidMoves()->at(i)
-					  << std::setw(12) << moveProbabilities1[gameState->getValidMoves()->at(i) + 1]
-					  << std::setw(12) << moveProbabilities2[gameState->getValidMoves()->at(i) + 1]
-					  << std::setw(12) << mcts1->getMoveValue(gameState->getChild(i))
-					  << std::setw(12) << mcts2->getMoveValue(gameState->getChild(i)) << '\n';
+			for (size_t i = 0; i < moveProbabilities.size(); i++) 
+				std::cout << std::setw(4) << "P " << std::setw(1) << i + 1
+						  << std::setw(4) << "V " << std::setw(1) << i + 1;
+			std::cout << '\n';
+		
+			for (unsigned int i = 0; i < gameState->getValidMoves()->size(); i++) {
+				const auto move = gameState->getValidMoves()->at(i);
+				const auto x = move / SIDE_LENGTH;
+				const auto y = move % SIDE_LENGTH;
+				std::cout << std::setw(3) << i
+						  << std::setw(3) << move;
+				if (move >= 0)
+				{
+					std::cout << std::setw(2) << x
+							  << std::setw(2) << y;
+				}
+				else {
+					std::cout << "----";
+				}
+			
+				for (size_t p = 0; p < moveProbabilities.size(); p++)
+				{
+					std::cout << std::setw(5) << moveProbabilities[p][gameState->getValidMoves()->at(i) + 1]
+							  << std::setw(12) << mcts[p]->getMoveValue(gameState->getChild(i));
+				}
+				std::cout << '\n';
+			}
+			
+			std::string command;
+			std::getline(std::cin, command);
+			int moveToPlay = 0;
+			if (command == "exit")
+			{
+				keep_play = false;
+				break;
+			}
+			else if (command == "reset")
+			{
+				break;
+			}
+			else if (command.starts_with("move"))
+			{
+				auto m = split(command, ' ');
+				if (m.size() == 2)
+				{
+					moveToPlay = std::stoi(m[1]);
+				}
+				else if (m.size() == 3)
+				{
+					auto x = std::stoi(m[1]);
+					auto y = std::stoi(m[2]);
+					auto cell_id = x * SIDE_LENGTH + y;
+					auto valid_move = std::ranges::find(*gameState->getValidMoves(), cell_id);
+					if (valid_move == gameState->getValidMoves()->end())
+						std::cout << "Invalid move: " << x << ", " << y << '\n';
+					moveToPlay = std::distance(gameState->getValidMoves()->begin(), valid_move);
+				}
+			} else if (command != "skip")
+			{
+				std::cout << "Unknown command: '" << command << "'\n";
+			}
+
+			auto childGameState = gameState->getChild(moveToPlay, false);
+			delete gameState;
+			gameState = childGameState;
+
+			gameState->printGameState();
+		
+			for (auto& m : mcts)
+				m->reset();
 		}
 
-		int moveToPlay;
-		std::cin >> moveToPlay;
-
-		GameState* childGameState = gameState->getChild(moveToPlay, false);
+		std::cout << gameState->getEndState() << '\n';
 		delete gameState;
-		gameState = childGameState;
-
-		gameState->printGameState();
-		mcts1->reset();
-		mcts2->reset();
 	}
 
-	std::cout << gameState->getEndState() << '\n';
-
-	delete gameState;
-	delete mcts1;
-	delete mcts2;
 
 	return 0;
 }
